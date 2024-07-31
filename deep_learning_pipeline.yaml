@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: deep-learning-pipeline-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.6, pipelines.kubeflow.org/pipeline_compilation_time: '2021-10-29T20:51:20.055965',
+    pipelines.kubeflow.org/pipeline_spec: '{"description": "Kubeflow pipeline to preprocess,
+      train and deploy a deep learning model", "name": "deep_learning_pipeline"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.6}
+spec:
+  entrypoint: deep-learning-pipeline
+  templates:
+  - name: deep-learning-pipeline
+    dag:
+      tasks:
+      - {name: pre-process, template: pre-process}
+      - name: print
+        template: print
+        dependencies: [pre-process]
+        arguments:
+          parameters:
+          - {name: pre-process-data_file, value: '{{tasks.pre-process.outputs.parameters.pre-process-data_file}}'}
+  - name: pre-process
+    container:
+      args: [cd deep_learning_folder && python3 src/preprocessing.py]
+      command: [sh, -c]
+      image: gcr.io/project_name/deep_learning_project_for_text_detection_in_images:latest
+    outputs:
+      parameters:
+      - name: pre-process-data_file
+        valueFrom: {path: /deep_learning_folder/input/data/data_file.csv}
+      artifacts:
+      - {name: pre-process-char2int, path: /deep_learning_folder/input/data/char2int.pkl}
+      - {name: pre-process-data_file, path: /deep_learning_folder/input/data/data_file.csv}
+      - {name: pre-process-int2char, path: /deep_learning_folder/input/data/int2char.pkl}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.6
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/max_cache_staleness: P0D}
+  - name: print
+    container:
+      args: ['echo ''Hello'' && cat {{inputs.parameters.pre-process-data_file}}']
+      command: [sh, -c]
+      image: gcr.io/project_name/deep_learning_project_for_text_detection_in_images:latest
+    inputs:
+      parameters:
+      - {name: pre-process-data_file}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.6
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/max_cache_staleness: P0D}
+  arguments:
+    parameters: []
+  serviceAccountName: pipeline-runner
